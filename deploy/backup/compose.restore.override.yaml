@@ -1,0 +1,15 @@
+# P10-10 only: loopback data ports for an isolated restore target.
+#
+# Use this file together with deploy/compose.yaml and a fresh
+# EM_COMPOSE_PROJECT=em-p10-restore-* project. It must never be passed to the
+# production project. No host port is published by the production topology.
+services:
+  postgres:
+    ports:
+      - "${EM_RESTORE_BIND:-127.0.0.1}:${EM_RESTORE_PG_PORT:?Set a fresh restore PostgreSQL port}:5432"
+  redis:
+    ports:
+      - "${EM_RESTORE_BIND:-127.0.0.1}:${EM_RESTORE_REDIS_PORT:?Set a fresh restore Redis port}:6379"
+  minio:
+    ports:
+      - "${EM_RESTORE_BIND:-127.0.0.1}:${EM_RESTORE_MINIO_PORT:?Set a fresh restore MinIO port}:9000"

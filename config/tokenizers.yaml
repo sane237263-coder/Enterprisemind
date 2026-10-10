@@ -1,0 +1,12 @@
+# Only public Tokenizer JSON files; no model weights or remote Python code.
+# SHA256 values are also pinned in the provider configuration.
+# The active LLM uses an explicit UTF-8 byte budget; it does not use the previous model's tokenizer.
+tokenizers:
+  embedding:
+    url: https://huggingface.co/BAAI/bge-m3/resolve/5617a9f61b028005a4858fdac845db406aefb181/tokenizer.json
+    file: ../.local/tokenizers/embedding/tokenizer.json
+    sha256: 21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08
+  rerank:
+    url: https://huggingface.co/BAAI/bge-reranker-v2-m3/resolve/953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e/tokenizer.json
+    file: ../.local/tokenizers/rerank/tokenizer.json
+    sha256: 69564b696052886ed0ac63fa393e928384e0f8caada38c1f4864a9bfbf379c15

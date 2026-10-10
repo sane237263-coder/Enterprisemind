@@ -1,0 +1,58 @@
+# Validated non-secret backend configuration.
+api:
+  workers: 2
+  regular_request_timeout_seconds: 60
+auth:
+  access_token_ttl_seconds: 1800
+  password_min_length: 12
+  password_max_length: 128
+postgres:
+  api_pool_max_per_process: 10
+  worker_pool_max: 10
+  scheduler_pool_max: 5
+  connection_timeout_seconds: 5
+  statement_timeout_ms: 10000
+upload:
+  max_bytes: 104857600
+  max_files: 10
+  request_timeout_seconds: 300
+  allowed_extensions: [pdf, md, markdown, txt, csv, doc, docx, ppt, pptx, xls, xlsx, png, jpg, jpeg, webp]
+worker:
+  concurrency: 2
+  lease_seconds: 120
+  lease_renew_interval_seconds: 30
+  parse_timeout_seconds: 180
+  parse_memory_limit_mb: 768
+  max_source_units: 10000
+  max_elements: 100000
+  max_text_chars: 20000000
+  max_archive_bytes: 268435456
+  max_archive_members: 20000
+  max_image_pixels: 25000000
+  image_max_edge: 2048
+  max_artifact_bytes: 104857600
+# Internal service for legacy DOC/PPT/XLS and complex PPT/PPTX visuals; credentials use *_FILE.
+office_converter: null
+outbox:
+  poll_interval_seconds: 1
+  claim_batch_size: 100
+  published_retention_days: 7
+  redelivery_seconds: 120
+storage:
+  orphan_grace_seconds: 86400
+  connection_timeout_seconds: 5
+  read_timeout_seconds: 30
+phase9:
+  memory_max_chars: 1000
+  memory_auto_candidates: 3
+  memory_select_candidates: 50
+  memory_inject_items: 10
+  memory_inject_chars: 6000
+  export_max_rows: 1000000
+  export_fetch_batch_size: 1000
+  export_max_serialized_bytes: 104857600
+  generation_max_file_bytes: 104857600
+  generation_temp_max_bytes: 314572800
+  database_export_timeout_seconds: 120
+  generation_timeout_seconds: 120
+  generation_recovery_max_attempts: 3

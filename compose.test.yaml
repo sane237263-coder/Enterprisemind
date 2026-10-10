@@ -1,0 +1,77 @@
+# Isolated backend test fixture, not the V1 deployment topology.
+name: enterprise-mind-tests
+services:
+  business-postgresql:
+    profiles: [database]
+    image: pgvector/pgvector:0.8.6-pg18-bookworm@sha256:2ba9ca5f2e7daa0f0e7723cba1ee9167bab54efd3640516a44ac1a928dd67e7a
+    environment:
+      POSTGRES_USER: em_business_owner
+      POSTGRES_DB: em_business_test
+      POSTGRES_PASSWORD_FILE: /run/secrets/test_business_password
+    secrets: [test_business_password]
+    ports: ["127.0.0.1:${EM_TEST_BUSINESS_PORT:-55483}:5432"]
+    # Synthetic rows and server state are memory-only. No persistent query/error logging.
+    command: [postgres, -c, log_statement=none, -c, log_min_error_statement=panic, -c, log_min_messages=panic, -c, log_parameter_max_length_on_error=0]
+    tmpfs: [/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U em_business_owner -d em_business_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    networks: [test_net]
+  postgresql:
+    image: pgvector/pgvector:0.8.6-pg18-bookworm@sha256:2ba9ca5f2e7daa0f0e7723cba1ee9167bab54efd3640516a44ac1a928dd67e7a
+    environment:
+      POSTGRES_USER: em_test_owner
+      POSTGRES_DB: em_stage1_test
+      POSTGRES_PASSWORD_FILE: /run/secrets/test_postgres_password
+    secrets:
+      - test_postgres_password
+    ports:
+      - "127.0.0.1:${EM_TEST_POSTGRES_PORT:-55432}:5432"
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U em_test_owner -d em_stage1_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    networks:
+      - test_net
+  redis:
+    profiles: [ingestion]
+    image: redis:8.10.1-alpine3.23@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576
+    command: [redis-server, --aclfile, /run/secrets/test_redis_acl, --appendonly, "no", --save, "", --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    secrets: [test_redis_acl]
+    ports: ["127.0.0.1:${EM_TEST_REDIS_PORT:-56379}:6379"]
+    tmpfs: [/data]
+    networks: [test_net]
+  minio:
+    profiles: [ingestion]
+    image: enterprise-mind-minio-test:2025-10-15
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/test_minio_root_access
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/test_minio_root_secret
+      MINIO_BROWSER: "off"
+    secrets: [test_minio_root_access, test_minio_root_secret]
+    ports: ["127.0.0.1:${EM_TEST_MINIO_PORT:-59000}:9000"]
+    tmpfs:
+      - /data:uid=10001,gid=10001,mode=0700
+      - /tmp:uid=10001,gid=10001,mode=0700
+    networks: [test_net]
+secrets:
+  test_business_password:
+    file: ./.local/test-secrets/business_password
+  test_postgres_password:
+    file: ./.local/test-secrets/postgres_password
+  test_redis_acl:
+    file: ./.local/test-secrets/redis.acl
+  test_minio_root_access:
+    file: ./.local/test-secrets/minio_root_access
+  test_minio_root_secret:
+    file: ./.local/test-secrets/minio_root_secret
+networks:
+  test_net:
+    # Docker 29 suppresses published ports on internal networks. Test clients run on the host;
+    # this dedicated bridge exposes only the explicit 127.0.0.1 binding above.
+    driver: bridge

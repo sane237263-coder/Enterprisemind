@@ -1,0 +1,11 @@
+# Detect text while preserving binary fixtures and generated document samples.
+* text=auto
+
+# Scripts also run in Linux containers and WSL.
+*.sh text eol=lf
+*.ps1 text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Markdown uses trailing spaces for intentional hard line breaks.
+*.md whitespace=-blank-at-eol

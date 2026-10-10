@@ -1,0 +1,8 @@
+# Apply together with compose.yaml and --profile office when Office is enabled.
+# A required dependency here keeps the base topology usable without Office.
+services:
+  worker:
+    depends_on:
+      office-converter:
+        condition: service_healthy
+        required: true

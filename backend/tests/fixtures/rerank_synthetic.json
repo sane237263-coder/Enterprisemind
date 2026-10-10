@@ -1,0 +1,30 @@
+{
+  "description": "Synthetic policies for development calibration only; no real enterprise facts or production acceptance claims.",
+  "cases": [
+    {"id":"c01","split":"calibration","query":"出差报销最晚什么时候提交？","documents":["员工出差报销须在行程结束后30个自然日内提交。","差旅报销材料包括交通票据和住宿发票。","会议室需要在日历系统预约。"],"relevant":[0]},
+    {"id":"c02","split":"calibration","query":"年假要提前几天申请？","documents":["员工须至少提前3个工作日提交年假申请。","年假未休天数在员工自助系统查询。","打印机位于二楼走廊。"],"relevant":[0]},
+    {"id":"c03","split":"calibration","query":"领取办公电脑找谁办理？","documents":["新员工领取办公电脑须联系信息技术部资产管理员。","办公电脑应安装终端防护软件。","客户资料应按项目编号归档。"],"relevant":[0]},
+    {"id":"c04","split":"calibration","query":"生产数据库备份保留多久？","documents":["生产数据库每天备份一次，备份文件保留90天。","数据库备份由运维团队统一执行。","食堂午餐供应时间是11点30分。"],"relevant":[0]},
+    {"id":"c05","split":"calibration","query":"会议室如何预约？","documents":["会议室通过办公日历系统预约，填写日期、时间和参会人数。","会议室配有投影仪和白板。","工资条每月发送给员工本人。"],"relevant":[0]},
+    {"id":"c06","split":"calibration","query":"发现钓鱼邮件应该向谁报告？","documents":["发现疑似钓鱼邮件应立即报告安全响应小组。","钓鱼邮件常伪装成快递或报销通知。","图书借阅每次最多3本。"],"relevant":[0]},
+    {"id":"c07","split":"calibration","query":"合同原件存放在哪里？","documents":["已签署合同的纸质原件统一存放在法务档案室。","合同签署前需完成法务审核。","停车场周末全天开放。"],"relevant":[0]},
+    {"id":"c08","split":"calibration","query":"超过多少钱的采购需要两级审批？","documents":["单笔采购金额超过5万元时，需要部门负责人和财务负责人两级审批。","采购申请必须附供应商报价单。","访客进入办公区需要登记。"],"relevant":[0]},
+    {"id":"c09","split":"calibration","query":"访客卡离开时交给谁？","documents":["访客离开时应将临时访客卡交还一楼前台。","访客卡禁止转借给其他人员。","每周五更新项目周报。"],"relevant":[0]},
+    {"id":"c10","split":"calibration","query":"项目周报每周什么时候提交？","documents":["项目周报须在每周五下午5点前提交到项目平台。","项目周报应包含进展与风险。","资产盘点在每季度末开展。"],"relevant":[0]},
+    {"id":"c11","split":"calibration","query":"试用期员工的年假天数是多少？","documents":["员工须至少提前3个工作日提交年假申请。","员工入职时应完成信息安全培训。","会议室通过办公日历系统预约。"],"relevant":[]},
+    {"id":"c12","split":"calibration","query":"出差住宿每晚最多可以报销多少钱？","documents":["员工出差报销须在行程结束后30个自然日内提交。","差旅报销材料包括交通票据和住宿发票。","公司停车场周末全天开放。"],"relevant":[]},
+    {"id":"c13","split":"calibration","query":"数据库备份加密使用哪种算法？","documents":["生产数据库每天备份一次，备份文件保留90天。","数据库备份由运维团队统一执行。","终端防护软件由信息技术部维护。"],"relevant":[]},
+    {"id":"c14","split":"calibration","query":"本月研发部有多少员工？","documents":["研发部每周三召开技术例会。","员工入职时需要领取办公电脑。","项目周报每周五提交。"],"relevant":[]},
+    {"id":"c15","split":"calibration","query":"公司今年营业收入是多少？","documents":["财务负责人负责审批大额采购。","合同原件存放在法务档案室。","差旅报销须提供发票。"],"relevant":[]},
+    {"id":"v01","split":"validation","query":"离职交接材料交到哪里？","documents":["离职员工应把签字后的交接表提交人力资源服务台。","交接表需要列明未完成事项。","生产数据库备份保留90天。"],"relevant":[0]},
+    {"id":"v02","split":"validation","query":"办公楼几点关闭门禁？","documents":["办公楼门禁每天晚上10点关闭，夜间进入需提前申请。","员工使用工牌通过门禁。","供应商报价有效期为30天。"],"relevant":[0]},
+    {"id":"v03","split":"validation","query":"丢失工牌需要多久内报失？","documents":["发现工牌遗失后应在1小时内向行政服务台报失。","工牌用于门禁和食堂消费。","年假申请需要提前提交。"],"relevant":[0]},
+    {"id":"v04","split":"validation","query":"办公用品每个月哪天领取？","documents":["行政部在每月第一个星期一集中发放办公用品。","办公用品申请需填写物品名称及数量。","服务器巡检每周执行一次。"],"relevant":[0]},
+    {"id":"v05","split":"validation","query":"安全培训一年至少参加几次？","documents":["所有员工每年至少参加2次信息安全培训。","信息安全培训内容包括密码管理和钓鱼邮件识别。","图书借阅应保持书籍整洁。"],"relevant":[0]},
+    {"id":"v06","split":"validation","query":"图书借阅期限是多少天？","documents":["公司图书借阅期限为30天，到期前可申请续借一次。","借书时须登记工号及书名。","访客应到一楼前台登记。"],"relevant":[0]},
+    {"id":"v07","split":"validation","query":"补办遗失工牌要交多少钱？","documents":["发现工牌遗失后应在1小时内向行政服务台报失。","工牌用于门禁和食堂消费。","办公用品每月集中发放。"],"relevant":[]},
+    {"id":"v08","split":"validation","query":"公司图书馆一共有多少本书？","documents":["公司图书借阅期限为30天，到期前可申请续借一次。","借书时须登记工号及书名。","行政部负责办公用品发放。"],"relevant":[]},
+    {"id":"v09","split":"validation","query":"员工安全培训考试及格线是多少分？","documents":["所有员工每年至少参加2次信息安全培训。","信息安全培训内容包括密码管理和钓鱼邮件识别。","项目周报应包含风险与进展。"],"relevant":[]},
+    {"id":"v10","split":"validation","query":"公司下一季度计划招聘多少人？","documents":["新员工须参加入职培训。","离职员工应提交交接表。","研发部每周召开技术例会。"],"relevant":[]}
+  ]
+}

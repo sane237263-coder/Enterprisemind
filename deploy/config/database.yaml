@@ -1,0 +1,5 @@
+# Mount this file at /run/config/database.yaml for API/Dispatcher/Worker.
+# The token is a Compose Secret and is resolved only by the application.
+database_mcp:
+  endpoint: "http://database-mcp:8000/mcp"
+  auth_secret_file: "/run/secrets/database_mcp_token"

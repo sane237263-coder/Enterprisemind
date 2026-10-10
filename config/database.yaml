@@ -1,0 +1,2 @@
+# Enable explicitly after configuring the independent internal service and its Secret.
+database_mcp: null

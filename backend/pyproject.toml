@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "enterprise-mind"
+version = "0.1.0"
+description = "EnterpriseMind private enterprise knowledge agent"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi==0.141.1",
+  "uvicorn>=0.35,<1",
+  "sqlalchemy>=2.0.43,<2.1",
+  "alembic>=1.18.4,<2",
+  "asyncpg>=0.30,<1",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic>=2.13.5,<3",
+  "pydantic-settings>=2.10,<3",
+  "PyYAML>=6.0.2,<7",
+  "PyJWT>=2.15.0,<3",
+  "argon2-cffi>=25.1,<26",
+  "minio>=7.2,<8",
+  "urllib3>=2.8.0,<3",
+  "redis>=6,<8",
+  "python-multipart>=0.0.20,<1",
+  "pymupdf>=1.26,<2",
+  "markdown-it-py>=4,<5",
+  "charset-normalizer>=3.4,<4",
+  "websockets>=15,<17",
+  "tokenizers>=0.22,<1",
+  "httpx>=0.28,<1",
+  "langgraph==1.2.11",
+  "langgraph-checkpoint-postgres==3.1.2",
+  "langchain-core>=1,<2",
+  "langchain-openai>=1,<2",
+  "rfc8785>=0.1.4,<1",
+  "python-docx>=1.2,<2",
+  "python-pptx>=1.0.2,<2",
+  "openpyxl>=3.1.5,<4",
+  "Pillow>=11.3,<13",
+  "defusedxml>=0.7.1,<1",
+  "pglast==8.4",
+  "mcp==2.2.0",
+]
+
+[project.scripts]
+enterprise-mind = "enterprise_mind.cli:main"
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28,<1",
+  "pytest>=8.4,<10",
+  "pytest-asyncio>=1,<2",
+  "ruff>=0.12,<1",
+  "mypy>=1.17,<2",
+  "types-PyYAML>=6,<7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/enterprise_mind"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+markers = ["integration: requires the dedicated PostgreSQL test instance"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src"]
+plugins = ["pydantic.mypy"]

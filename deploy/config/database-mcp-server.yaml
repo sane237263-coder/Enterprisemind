@@ -1,0 +1,23 @@
+# Copy to a private deployment path before use.  Every CHANGE_ME value must be
+# replaced by the approved enterprise source and a DBA-provisioned read-only
+# identity.  The preflight rejects this template unchanged.
+# Put the approved PUBLIC database CA bundle at config/database-ca.pem in the
+# release directory. Compose sets PGSSLROOTCERT=/run/config/database-ca.pem;
+# keep verify-full and never copy the CA private key into that directory.
+listen_host: "0.0.0.0"
+listen_port: 8000
+allowed_hosts: ["database-mcp:8000"]
+allowed_origins: []
+auth_secret_file: "/run/secrets/database_mcp_token"
+database:
+  host: "CHANGE_ME_APPROVED_ENTERPRISE_DB_HOST"
+  port: 5432
+  database_name: "CHANGE_ME_ENTERPRISE_DATABASE"
+  user: "enterprise_mind_db_readonly"
+  password_file: "/run/secrets/database_readonly_password"
+  sslmode: "verify-full"
+  secret_ref: "secret:enterprise_database_readonly"
+  connection_options:
+    connect_timeout: 5
+    application_name: "enterprise_mind_database_mcp"
+    target_session_attrs: "read-only"

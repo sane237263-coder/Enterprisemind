@@ -1,0 +1,492 @@
+# EnterpriseMind candidate production topology.
+#
+# Every image and every host path needed for a production run is supplied by
+# the release environment.  The preflight refuses floating tags, placeholders,
+# missing Secrets and non-HTTPS public origins.  This file deliberately does
+# not publish PostgreSQL, Redis, MinIO or Database MCP ports.
+name: ${EM_COMPOSE_PROJECT:?Set an isolated EnterpriseMind Compose project name}
+
+x-build-backend: &build-backend
+  context: ..
+  dockerfile: deploy/backend/Dockerfile
+  args:
+    PYTHON_IMAGE: ${EM_PYTHON_IMAGE:?Set a digest-pinned Python image}
+    UV_IMAGE: ${EM_UV_IMAGE:?Set a digest-pinned uv image}
+
+x-app-environment: &app-environment
+  EM_ENV: production
+  EM_POSTGRES_HOST: postgres
+  EM_POSTGRES_PORT: "5432"
+  EM_POSTGRES_DATABASE: enterprise_mind
+  EM_POSTGRES_USER: enterprise_mind_app
+  EM_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_app_password
+  EM_APPLICATION_CONFIG: /run/config/application.yaml
+  EM_PROVIDERS_CONFIG: /run/config/providers.yaml
+  EM_RAG_CONFIG: /run/config/rag.yaml
+  EM_LLM_API_KEY_FILE: /run/secrets/llm_api_key
+  EM_EMBEDDING_API_KEY_FILE: /run/secrets/embedding_api_key
+  EM_RERANK_API_KEY_FILE: /run/secrets/rerank_api_key
+  EM_OCR_API_KEY_FILE: /run/secrets/ocr_api_key
+  EM_OCR_SECRET_ID_FILE: /run/secrets/ocr_secret_id
+  EM_OCR_SECRET_KEY_FILE: /run/secrets/ocr_secret_key
+  EM_VISION_API_KEY_FILE: /run/secrets/vision_api_key
+  EM_CHECKPOINT_POSTGRES_USER: enterprise_mind_checkpoint
+  EM_CHECKPOINT_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_checkpoint_password
+  EM_PUBLIC_ORIGIN: ${EM_PUBLIC_ORIGIN:?Set the approved HTTPS origin}
+  EM_MINIO_ENDPOINT: minio:9000
+  EM_MINIO_BUCKET: ${EM_MINIO_BUCKET:?Set a dedicated MinIO bucket}
+  EM_MINIO_SECURE: "false"
+  EM_MINIO_ACCESS_KEY_FILE: /run/secrets/minio_app_access
+  EM_MINIO_SECRET_KEY_FILE: /run/secrets/minio_app_secret
+  EM_REDIS_HOST: redis
+  EM_REDIS_PORT: "6379"
+  EM_REDIS_USERNAME: enterprise_mind_app
+  EM_REDIS_PASSWORD_FILE: /run/secrets/redis_app_password
+  EM_REDIS_STREAM: enterprise-mind:processing
+  EM_DATABASE_CONFIG: /run/config/database.yaml
+  EM_AGENT_CONFIG: /opt/enterprise-mind/config/agent.yaml
+
+x-app-secrets: &app-secrets
+  - postgres_app_password
+  - minio_app_access
+  - minio_app_secret
+  - redis_app_password
+  - token_signing_key
+  - database_mcp_token
+  - postgres_checkpoint_password
+  - llm_api_key
+  - embedding_api_key
+  - rerank_api_key
+  - ocr_api_key
+  - ocr_secret_id
+  - ocr_secret_key
+  - vision_api_key
+
+# The Worker also calls the internal Office converter when that optional
+# configuration is enabled. Keep this token out of the API and Dispatcher.
+x-worker-secrets: &worker-secrets
+  - postgres_app_password
+  - minio_app_access
+  - minio_app_secret
+  - redis_app_password
+  - token_signing_key
+  - database_mcp_token
+  - postgres_checkpoint_password
+  - llm_api_key
+  - embedding_api_key
+  - rerank_api_key
+  - ocr_api_key
+  - ocr_secret_id
+  - ocr_secret_key
+  - vision_api_key
+  - converter_token
+
+x-service-hardening: &service-hardening
+  # File-backed Secrets retain host ownership. All custom readers share this
+  # fixed UID; each service still receives only its own declared mounts.
+  user: "65532:65532"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  tmpfs:
+    - /tmp:size=512m,mode=1777
+
+services:
+  postgres:
+    image: ${EM_POSTGRES_IMAGE:?Set a digest-pinned pgvector image}
+    # Preserve the official root entrypoint; it reads _FILE credentials before
+    # unsetting _FILE and dropping to the image's postgres account.
+    user: "0:0"
+    environment:
+      # The image entrypoint creates POSTGRES_USER as its bootstrap
+      # superuser. The provisioner creates the separate NOLOGIN owner role.
+      POSTGRES_USER: enterprise_mind_bootstrap
+      POSTGRES_DB: enterprise_mind
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_owner_password
+    secrets: [postgres_owner_password]
+    volumes:
+      # PG18 declares /var/lib/postgresql and sets PGDATA below it.
+      - postgres_data:/var/lib/postgresql
+    networks: [app_net]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U enterprise_mind_bootstrap -d enterprise_mind"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: ${EM_REDIS_IMAGE:?Set a digest-pinned Redis image}
+    # The entrypoint drops the server to redis (UID 999); Docker healthchecks
+    # retain the configured root identity and can read the app password file.
+    user: "0:0"
+    command: [redis-server, --aclfile, /run/secrets/redis_acl, --appendonly, "yes", --save, "60", "1000", --maxmemory-policy, noeviction]
+    secrets:
+      - redis_acl
+      - redis_app_password
+    volumes:
+      - redis_data:/data
+    networks: [app_net]
+    healthcheck:
+      test: [CMD-SHELL, "redis-cli --user enterprise_mind_app --pass \"$$(cat /run/secrets/redis_app_password)\" ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  minio:
+    image: ${EM_MINIO_IMAGE:?Set a digest-pinned MinIO image}
+    # Preserve this image family's root runtime and volume initialization.
+    user: "0:0"
+    command: [server, /data, --address, ":9000", --console-address, ":9001"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_access
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_secret
+      MINIO_BROWSER: "off"
+    secrets: [minio_root_access, minio_root_secret]
+    volumes:
+      - minio_data:/data
+    networks: [app_net]
+    healthcheck:
+      test: [CMD-SHELL, "curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # Run this profile once for an empty application database.  It uses the
+  # bootstrap superuser only creates the distinct owner/migrator/app/backup/
+  # checkpoint roles. The legacy Secret filename is retained for backup tools.
+  db-provision:
+    profiles: [bootstrap]
+    build: *build-backend
+    user: "65532:65532"
+    command:
+      - provision-database
+      - --migrator-password-file
+      - /run/secrets/postgres_migrator_password
+      - --app-password-file
+      - /run/secrets/postgres_app_password
+      - --backup-password-file
+      - /run/secrets/postgres_backup_password
+      - --checkpoint-password-file
+      - /run/secrets/postgres_checkpoint_password
+    environment:
+      EM_ENV: production
+      EM_POSTGRES_HOST: postgres
+      EM_POSTGRES_PORT: "5432"
+      EM_POSTGRES_DATABASE: enterprise_mind
+      EM_POSTGRES_USER: enterprise_mind_bootstrap
+      EM_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_owner_password
+      EM_APPLICATION_CONFIG: /run/config/application.yaml
+    secrets:
+      - postgres_owner_password
+      - postgres_migrator_password
+      - postgres_app_password
+      - postgres_backup_password
+      - postgres_checkpoint_password
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [app_net]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  # Migrations are a single controlled action, never part of API/Worker
+  # startup.  The service exits and is inspected before application services
+  # are started.
+  migrate:
+    profiles: [operations]
+    build: *build-backend
+    user: "65532:65532"
+    command: [migrate, --backend-root, /opt/enterprise-mind/backend]
+    environment:
+      EM_ENV: production
+      EM_POSTGRES_HOST: postgres
+      EM_POSTGRES_PORT: "5432"
+      EM_POSTGRES_DATABASE: enterprise_mind
+      EM_POSTGRES_USER: enterprise_mind_migrator
+      EM_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_migrator_password
+      EM_APPLICATION_CONFIG: /run/config/application.yaml
+      EM_BOOTSTRAP_ADMIN_USERNAME: ${EM_BOOTSTRAP_ADMIN_USERNAME:?Set the initial administrator username}
+      EM_BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/bootstrap_admin_password
+    secrets: [postgres_migrator_password, bootstrap_admin_password]
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [app_net]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  checkpoint-init:
+    profiles: [operations]
+    build: *build-backend
+    user: "65532:65532"
+    command: [checkpoint-init]
+    environment:
+      EM_ENV: production
+      EM_POSTGRES_HOST: postgres
+      EM_POSTGRES_PORT: "5432"
+      EM_POSTGRES_DATABASE: enterprise_mind
+      EM_POSTGRES_USER: enterprise_mind_migrator
+      EM_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_migrator_password
+      EM_APPLICATION_CONFIG: /run/config/application.yaml
+    secrets: [postgres_migrator_password]
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [app_net]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  storage-init:
+    profiles: [operations]
+    build: *build-backend
+    user: "65532:65532"
+    command:
+      - storage-init
+      - --root-access-key-file
+      - /run/secrets/minio_root_access
+      - --root-secret-key-file
+      - /run/secrets/minio_root_secret
+    environment:
+      EM_ENV: production
+      EM_POSTGRES_HOST: postgres
+      EM_POSTGRES_PORT: "5432"
+      EM_POSTGRES_DATABASE: enterprise_mind
+      EM_POSTGRES_USER: enterprise_mind_app
+      EM_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_app_password
+      EM_MINIO_ENDPOINT: minio:9000
+      EM_MINIO_BUCKET: ${EM_MINIO_BUCKET:?Set a dedicated MinIO bucket}
+      EM_MINIO_ACCESS_KEY_FILE: /run/secrets/minio_app_access
+      EM_MINIO_SECRET_KEY_FILE: /run/secrets/minio_app_secret
+      EM_MINIO_SECURE: "false"
+      EM_REDIS_HOST: redis
+      EM_REDIS_PASSWORD_FILE: /run/secrets/redis_app_password
+      EM_APPLICATION_CONFIG: /run/config/application.yaml
+    secrets:
+      - minio_root_access
+      - minio_root_secret
+      - minio_app_access
+      - minio_app_secret
+      - redis_app_password
+      - postgres_app_password
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [app_net]
+    depends_on:
+      minio: {condition: service_healthy}
+    restart: "no"
+
+  database-mcp:
+    build:
+      context: ..
+      dockerfile: deploy/database-mcp/Dockerfile
+      args:
+        PYTHON_IMAGE: ${EM_PYTHON_IMAGE:?Set a digest-pinned Python image}
+        UV_IMAGE: ${EM_UV_IMAGE:?Set a digest-pinned uv image}
+    environment:
+      EM_DATABASE_MCP_SERVER_CONFIG: /run/config/database-mcp-server.yaml
+      # asyncpg verify-full requires an explicit CA trust bundle; the host's
+      # default ~/.postgresql/root.crt is not present in this container.
+      PGSSLROOTCERT: /run/config/database-ca.pem
+    secrets:
+      - database_mcp_token
+      - database_readonly_password
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [mcp_net, mcp_egress]
+    <<: *service-hardening
+    expose: [8000]
+    healthcheck:
+      test: [CMD, /opt/enterprise-mind/backend/.venv/bin/python, -c, "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build: *build-backend
+    command: [serve, --host, 0.0.0.0, --port, "8000"]
+    environment:
+      <<: *app-environment
+      EM_TOKEN_SIGNING_KEY_FILE: /run/secrets/token_signing_key
+    secrets: *app-secrets
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [edge_net, app_net, mcp_net]
+    <<: *service-hardening
+    expose: [8000]
+    healthcheck:
+      test: [CMD, /opt/enterprise-mind/backend/.venv/bin/python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      database-mcp: {condition: service_healthy}
+    restart: unless-stopped
+
+  dispatcher:
+    build: *build-backend
+    command: [dispatch]
+    environment: *app-environment
+    secrets: *app-secrets
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [app_net, mcp_net]
+    <<: *service-hardening
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      database-mcp: {condition: service_healthy}
+    restart: unless-stopped
+
+  worker:
+    build: *build-backend
+    command: [worker]
+    environment:
+      <<: *app-environment
+      EM_OFFICE_CONVERTER_TOKEN_FILE: /run/secrets/converter_token
+    secrets: *worker-secrets
+    volumes:
+      - ${EM_CONFIG_DIR:?Set the immutable release config directory}:/run/config:ro
+    networks: [app_net, mcp_net, conversion_net, model_egress]
+    <<: *service-hardening
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      database-mcp: {condition: service_healthy}
+    restart: unless-stopped
+
+  # Enabled only when the deployment's application.yaml explicitly points to
+  # http://office-converter:8080.  The Worker is the only caller.
+  office-converter:
+    profiles: [office]
+    build:
+      context: ..
+      dockerfile: deploy/office-converter/Dockerfile
+      args:
+        PYTHON_IMAGE: ${EM_PYTHON_IMAGE:?Set a digest-pinned Python image}
+        UV_IMAGE: ${EM_UV_IMAGE:?Set a digest-pinned uv image}
+    environment:
+      EM_OFFICE_CONVERTER_TOKEN_FILE: /run/secrets/converter_token
+    secrets: [converter_token]
+    networks: [conversion_net]
+    <<: *service-hardening
+    mem_limit: 4g
+    pids_limit: 128
+    tmpfs: [/tmp:size=2g,mode=1777]
+    healthcheck:
+      test: [CMD, /app/backend/.venv/bin/python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=8).close()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+
+  edge:
+    build:
+      context: ..
+      dockerfile: deploy/frontend/Dockerfile
+      args:
+        NODE_IMAGE: ${EM_NODE_IMAGE:?Set a digest-pinned Node image}
+        NGINX_IMAGE: ${EM_NGINX_IMAGE:?Set a digest-pinned Nginx image}
+    environment:
+      EM_PUBLIC_ORIGIN: ${EM_PUBLIC_ORIGIN:?Set the approved HTTPS origin}
+      EM_PUBLIC_HOST: ${EM_PUBLIC_HOST:?Set the approved public host}
+      EM_HTTPS_PORT: ${EM_HTTPS_PORT:-443}
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /var/cache/nginx:size=64m,uid=101,gid=101,mode=0755
+    secrets: [tls_certificate, tls_private_key]
+    ports:
+      - "${EM_EDGE_BIND:?Set an explicit approved host bind}:${EM_HTTP_PORT:-80}:8080"
+      - "${EM_EDGE_BIND:?Set an explicit approved host bind}:${EM_HTTPS_PORT:-443}:8443"
+    networks: [edge_net]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  edge_net:
+  app_net:
+    internal: true
+  mcp_net:
+    internal: true
+  mcp_egress: {}
+  conversion_net:
+    internal: true
+  # Workers call configured external LLM/Embedding/OCR/Vision providers.
+  # This bridge has outbound access but publishes no container port.
+  model_egress:
+    driver: bridge
+
+secrets:
+  postgres_owner_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/postgres_owner_password
+  postgres_migrator_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/postgres_migrator_password
+  postgres_app_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/postgres_app_password
+  postgres_backup_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/postgres_backup_password
+  postgres_checkpoint_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/postgres_checkpoint_password
+  bootstrap_admin_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/bootstrap_admin_password
+  redis_acl:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/redis.acl
+  redis_app_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/redis_app_password
+  minio_root_access:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/minio_root_access
+  minio_root_secret:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/minio_root_secret
+  minio_app_access:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/minio_app_access
+  minio_app_secret:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/minio_app_secret
+  token_signing_key:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/token_signing_key
+  database_mcp_token:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/database_mcp_token
+  database_readonly_password:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/database_readonly_password
+  llm_api_key:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/llm_api_key
+  embedding_api_key:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/embedding_api_key
+  rerank_api_key:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/rerank_api_key
+  ocr_api_key:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/ocr_api_key
+  ocr_secret_id:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/ocr_secret_id
+  ocr_secret_key:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/ocr_secret_key
+  vision_api_key:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/vision_api_key
+  converter_token:
+    file: ${EM_SECRET_DIR:?Set the private Secret directory}/converter_token
+  tls_certificate:
+    file: ${EM_TLS_CERT_FILE:?Set the approved TLS certificate path}
+  tls_private_key:
+    file: ${EM_TLS_KEY_FILE:?Set the approved TLS private key path}

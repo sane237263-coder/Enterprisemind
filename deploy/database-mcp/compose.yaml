@@ -1,0 +1,39 @@
+services:
+  database-mcp-server:
+    build:
+      context: ../..
+      dockerfile: deploy/database-mcp/Dockerfile
+      args:
+        PYTHON_IMAGE: ${EM_PYTHON_IMAGE:?Set a digest-pinned Python image}
+        UV_IMAGE: ${EM_UV_IMAGE:?Set a digest-pinned uv image}
+    restart: unless-stopped
+    read_only: true
+    mem_limit: 512m
+    pids_limit: 128
+    tmpfs: [/tmp:size=64m,mode=1777]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    expose:
+      - "8000"
+    networks:
+      - database-mcp-internal
+      - database-egress
+    secrets:
+      - database_mcp_token
+      - database_readonly_password
+    environment:
+      EM_DATABASE_MCP_SERVER_CONFIG: /etc/enterprise-mind/database-mcp.yaml
+    volumes:
+      - ${EM_DATABASE_MCP_CONFIG_FILE:?Set an absolute local configuration path}:/etc/enterprise-mind/database-mcp.yaml:ro
+
+networks:
+  database-mcp-internal:
+    internal: true
+  # Firewall this egress to the one configured enterprise PostgreSQL endpoint.
+  database-egress: {}
+
+secrets:
+  database_mcp_token:
+    file: ./secrets/database_mcp_token
+  database_readonly_password:
+    file: ./secrets/database_readonly_password

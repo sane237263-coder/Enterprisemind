@@ -1,0 +1,101 @@
+# 已选模型的接入模板；不含密钥，也不会被应用默认加载。
+# 配置与凭据说明：README.md、config/model-secrets.example.ps1；部署说明：deploy/README.md。
+# 配套使用 config/rag.models.example.yaml；本机副本为 providers.local.yaml / rag.local.yaml。
+# 本地 Tokenizer 路径不可直接用于 Compose；发布副本改为 tokenizers/...，见 deploy/README.md。
+# 主 LLM 与 Vision 使用硅基流动 Qwen3.5-4B；凭据通过各能力的 *_FILE 变量引用。
+# 重排阈值按所选模型和业务资料配置。
+# 模型、地址及运行预算均在配置中选择；更换模型后重新验证 Tokenizer 和阈值。
+
+allowed_origins:
+  - https://api.siliconflow.cn
+  - https://ocr.tencentcloudapi.com
+
+llm:
+  protocol: openai_compatible
+  provider_key: primary_llm
+  base_url: https://api.siliconflow.cn/v1
+  model: Qwen/Qwen3.5-4B
+  model_key: qwen3.5-4b-siliconflow-v1
+  timeout_seconds: 120
+  # 单次规划的总等待上限，包含重试；回答生成仍用 timeout_seconds。
+  plan_timeout_seconds: 45
+  # 首段正文及流式正文停顿上限；持续输出仍受整体回答预算约束。
+  answer_idle_timeout_seconds: 45
+  # 历史摘要属于可选上下文，超时后保留可容纳的最近原始消息。
+  summary_timeout_seconds: 10
+  max_retries: 2
+  # 应用自行设置的保守预算，不代表模型官方最大上下文。
+  max_input_tokens: 65536
+  max_output_tokens: 4096
+  request_options:
+    enable_thinking: false
+  structured_output_method: json_mode
+  # 使用 UTF-8 字节估算长度，用于应用输入预算。
+  # 仅为应用预算，不是计费 Token；获得匹配的 Tokenizer 后可改回 local_tokenizer。
+  token_counter: utf8_bytes
+  secret_file_env: EM_LLM_API_KEY_FILE
+
+embedding:
+  protocol: openai_compatible
+  provider_key: primary_embedding
+  base_url: https://api.siliconflow.cn/v1
+  model: BAAI/bge-m3
+  model_key: bge-m3-1024-v1
+  timeout_seconds: 60
+  max_retries: 2
+  max_input_tokens: 8192
+  tokenizer_file: ../.local/tokenizers/embedding/tokenizer.json
+  tokenizer_sha256: 21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08
+  dimensions: 1024
+  send_dimensions: false # 当前 BGE-M3 请求不发送 dimensions 参数。
+  max_batch_size: 8
+  secret_file_env: EM_EMBEDDING_API_KEY_FILE
+
+rerank:
+  protocol: jina_compatible
+  provider_key: primary_rerank
+  base_url: https://api.siliconflow.cn/v1
+  model: BAAI/bge-reranker-v2-m3
+  model_key: bge-reranker-v2-m3-v1
+  timeout_seconds: 60
+  max_retries: 2
+  max_input_tokens: 4096
+  tokenizer_file: ../.local/tokenizers/rerank/tokenizer.json
+  tokenizer_sha256: 69564b696052886ed0ac63fa393e928384e0f8caada38c1f4864a9bfbf379c15
+  score_direction: higher
+  # 当前托管版本的实测值在此范围内；超出范围会触发受控失败，不做归一化。
+  score_min: 0.0
+  score_max: 1.0
+  secret_file_env: EM_RERANK_API_KEY_FILE
+  # 配对的模型键及开发阈值保存在 rag.models.example.yaml。
+
+# 明确配置两个 Action 时，每幅图调用文字识别和表格识别各一次。
+# table_action 设为 null 则只调用文字识别；变更后需更新 model_key。
+ocr:
+  protocol: tencent_tc3_ocr
+  provider_key: primary_ocr
+  base_url: https://ocr.tencentcloudapi.com
+  model: GeneralAccurateOCR
+  table_action: RecognizeTableAccurateOCR
+  model_key: ocr-text-table-v1
+  api_version: '2018-11-19'
+  region: ap-guangzhou
+  timeout_seconds: 120
+  max_retries: 2
+  max_image_base64_bytes: 10000000
+  secret_id_file_env: EM_OCR_SECRET_ID_FILE
+  secret_key_file_env: EM_OCR_SECRET_KEY_FILE
+
+vision:
+  protocol: openai_compatible
+  provider_key: primary_vision
+  base_url: https://api.siliconflow.cn/v1
+  model: Qwen/Qwen3.5-4B
+  model_key: qwen3.5-4b-siliconflow-vision-v1
+  timeout_seconds: 120
+  max_retries: 2
+  max_output_tokens: 2048
+  request_options:
+    enable_thinking: false
+  response_format: json_object
+  secret_file_env: EM_VISION_API_KEY_FILE

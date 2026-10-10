@@ -1,0 +1,8 @@
+# Selected-model development profile. Unspecified fields use the existing RAG defaults.
+# Configure the rerank threshold for the selected model and document collection.
+# Setup: README.md, config/providers.example.yaml and deploy/README.md.
+rag:
+  rerank:
+    candidate_limit: 30
+    model_key: bge-reranker-v2-m3-v1
+    min_score: 0.7014929950237274

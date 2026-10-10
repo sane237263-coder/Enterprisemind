@@ -1,0 +1,24 @@
+# Legacy rules for a deploy-only context. Production Compose uses the root
+# .dockerignore, not this file; see ../.dockerignore and security_release_check.py.
+# Only the Dockerfiles' explicit
+# COPY paths are needed at runtime; secrets, evidence and local workspaces
+# must never enter an image layer.
+.git
+.local
+.codex-tmp
+**/.venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+backend/tests
+frontend/tests
+frontend/e2e
+phase9-manual-*
+deploy/secrets
+secrets/
+deploy/.env
+*.pem
+*.key

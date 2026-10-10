@@ -1,0 +1,12 @@
+# Provider configuration entry points. See config/providers.example.yaml
+# and deploy/README.md for protocol fields and deployment setup.
+# Credentials belong in explicit *_FILE environment variables, never this file.
+# Selected-model profile: config/providers.example.yaml + config/rag.models.example.yaml.
+# The local environment script selects providers.local.yaml; this baseline stays unconfigured.
+# Local credential paths: config/model-secrets.example.ps1; setup: README.md.
+allowed_origins: []
+llm: null
+embedding: null
+rerank: null
+ocr: null
+vision: null

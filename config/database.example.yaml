@@ -1,0 +1,3 @@
+database_mcp:
+  endpoint: "http://database-mcp-server:8000/mcp"
+  auth_secret_file: "/run/secrets/database_mcp_token"

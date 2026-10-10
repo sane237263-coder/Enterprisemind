@@ -1,0 +1,13 @@
+listen_host: "0.0.0.0"
+listen_port: 8000
+allowed_hosts: ["database-mcp-server:8000"]
+allowed_origins: []
+auth_secret_file: "/run/secrets/database_mcp_token"
+database:
+  host: "business-postgres"
+  port: 5432
+  database_name: "enterprise_business"
+  user: "enterprise_mind_db_readonly"
+  password_file: "/run/secrets/database_readonly_password"
+  sslmode: "verify-full"
+  secret_ref: "secret:enterprise_database_readonly"

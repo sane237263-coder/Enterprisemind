@@ -1,0 +1,31 @@
+# Internal fragment: attach only the Worker to conversion_net in the deployment Compose.
+services:
+  office-converter:
+    build:
+      context: ../..
+      dockerfile: deploy/office-converter/Dockerfile
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 4g
+    cpus: 2
+    tmpfs: ["/tmp:size=2g,mode=1777"]
+    environment:
+      EM_OFFICE_CONVERTER_TOKEN_FILE: /run/secrets/converter_token
+    secrets: [converter_token]
+    networks: [conversion_net]
+    healthcheck:
+      test: [CMD, /app/backend/.venv/bin/python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=8).close()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+secrets:
+  converter_token:
+    file: ${EM_OFFICE_CONVERTER_TOKEN_FILE:?Set the token file path}
+networks:
+  conversion_net:
+    internal: true

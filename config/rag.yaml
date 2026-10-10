@@ -1,0 +1,41 @@
+rag:
+  chunk:
+    target_tokens: 400
+    max_tokens: 600
+    min_tokens: 80
+    overlap_tokens: 80
+  keyword:
+    content_limit: 50
+    metadata_document_limit: 10
+    metadata_chunks_per_document: 2
+    trigram_threshold: 0.30
+  vector:
+    candidate_limit: 50
+    exact_scan_max_chunks: 5000
+    distance: cosine
+  rrf:
+    k: 60
+    keyword_weight: 1.0
+    vector_weight: 1.0
+    metadata_weight: 0.5
+    fused_limit: 30
+  rerank:
+    candidate_limit: 30
+    model_key: null
+    min_score: null
+  context:
+    max_blocks: 10
+    max_token_ratio: 0.35
+    absolute_max_tokens: 6000
+    neighbor_each_side: 1
+  dedup:
+    anchor_overlap_ratio: 0.80
+  fallback:
+    consensus_rank: 20
+  hnsw:
+    m: 16
+    ef_construction: 64
+    ef_search: 100
+    iterative_scan: strict_order
+    max_scan_tuples: 20000
+    scan_mem_multiplier: 1

@@ -1,0 +1,53 @@
+# Python environments and generated caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Local configuration and credentials
+.env
+.env.*
+.local/
+*.local.*
+*.secret.*
+config/*.yaml.before-*
+/secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Public configuration examples
+!.env.example
+!*.example
+!*.example.*
+
+# Frontend dependencies, build output and browser test output
+node_modules/
+.vite/
+dist/
+build/
+test-results/
+playwright-report/
+
+# Local acceptance runs (some directories have restricted ACLs)
+/.codex-tmp/
+/phase10-manifest-*/
+/phase9-manual-*/
+
+# Local development documentation
+/docs/
+
+# Logs and operating-system metadata
+*.log
+.DS_Store
+Thumbs.db

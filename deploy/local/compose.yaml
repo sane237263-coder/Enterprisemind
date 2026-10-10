@@ -1,0 +1,62 @@
+# API/Dispatcher/Worker connect to Ubuntu's native PostgreSQL on 5433.
+# Docker holds only the other local development dependencies.
+name: enterprise-mind-local
+services:
+  redis:
+    image: redis:8.10.1-alpine3.23@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576
+    pull_policy: never
+    command: [redis-server, --aclfile, /run/secrets/redis_acl, --appendonly, "yes", --save, "", --maxmemory, 64mb, --maxmemory-policy, noeviction]
+    secrets: [redis_acl]
+    ports: ["127.0.0.1:36379:6379"]
+    volumes: ["redis_data:/data"]
+    mem_limit: 128m
+    restart: unless-stopped
+  minio:
+    image: enterprise-mind-minio-test:2025-10-15
+    pull_policy: never
+    # Existing local image; root is needed to initialize a fresh named volume.
+    user: "0:0"
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_access
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_secret
+      MINIO_BROWSER: "off"
+    secrets: [minio_root_access, minio_root_secret]
+    ports: ["127.0.0.1:39000:9000"]
+    volumes: ["minio_data:/data"]
+    tmpfs: ["/tmp:size=64m"]
+    mem_limit: 384m
+    restart: unless-stopped
+  office-converter:
+    image: enterprise-mind-office:r71-final2
+    pull_policy: never
+    environment:
+      EM_OFFICE_CONVERTER_TOKEN_FILE: /run/secrets/converter_token
+    secrets: [converter_token]
+    ports: ["127.0.0.1:38002:8080"]
+    # Run the current converter source with the installed, locked dependencies.
+    volumes: ["../../backend/src:/app/backend/src:ro"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    mem_limit: 1g
+    cpus: 1
+    healthcheck:
+      test: [CMD, /app/backend/.venv/bin/python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=8).close()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+secrets:
+  redis_acl:
+    file: ../../.local/runtime/secrets/redis.acl
+  minio_root_access:
+    file: ../../.local/runtime/secrets/minio_root_access
+  minio_root_secret:
+    file: ../../.local/runtime/secrets/minio_root_secret
+  converter_token:
+    file: ../../.local/runtime/secrets/converter_token
+volumes:
+  redis_data:
+  minio_data:
